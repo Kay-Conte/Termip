@@ -1,16 +1,15 @@
-use std::os::windows::prelude::AsRawHandle;
+use std::os::fd::AsRawFd;
 
-#[cfg(target_os = "windows")]
-mod platform {
+#[cfg(windows)]
+pub mod platform {
 
     use std::{
-        io::{Write, Error, ErrorKind},
+        io::{ErrorKind, Write, Write},
         os::windows::prelude::AsRawHandle,
     };
 
     use winapi::um::{
         consoleapi::{GetConsoleMode, SetConsoleMode, ReadConsoleInputW},
-        handleapi::INVALID_HANDLE_VALUE,
         wincon::{ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT, ENABLE_PROCESSED_OUTPUT, PeekConsoleInputW, SetConsoleCursorPosition},
         winnt::HANDLE, wincontypes::{INPUT_RECORD, COORD},
     };
@@ -68,12 +67,19 @@ mod platform {
     }
 
     // Clears the screen and returns the cursor to 0, 0
-    pub fn clear_screen<S>(s: &mut S) -> std::io::Result<()> where S: Write {
+    pub fn clear_screen<S>(s: &mut S) -> std::io::Result<()>
+    where
+        S: Write,
+    {
         write!(s, "\x1B[2J\x1B[1;1H")?;
+
         Ok(())
     }
 
-    pub fn try_read_event<S>(stdin: &mut S) -> std::io::Result<Option<Event>> where S: AsRawHandle {
+    pub fn try_read_event<S>(stdin: &mut S) -> std::io::Result<Option<Event>>
+    where
+        S: AsRawHandle,
+    {
         let handle = stdin.as_raw_handle() as HANDLE;
 
         let mut records: [INPUT_RECORD; 1] = unsafe { std::mem::zeroed() };
@@ -107,7 +113,7 @@ mod platform {
         match unsafe { records[0].EventType } {
             KEY_EVENT => {
                 let key_event = unsafe { records[0].Event.KeyEvent() };
-
+   
                 let key: Key = (*key_event).into();
 
                 Ok(Some(Event::Key(key)))
@@ -117,7 +123,10 @@ mod platform {
         }
     }
 
-    pub fn move_cursor<S>(stdin: S, x: i16, y: i16) -> std::io::Result<()> where S: AsRawHandle {
+    pub fn move_cursor<S>(stdin: S, x: i16, y: i16) -> std::io::Result<()>
+    where
+        S: AsRawHandle,
+    {
         let handle = stdin.as_raw_handle() as HANDLE;
 
         let pos = COORD { X: x, Y: y };
@@ -128,27 +137,65 @@ mod platform {
 
         Ok(())
     }
-
+    
     pub fn try_read_mouse_event(stdin: ()) -> std::io::Result<()> {
         unimplemented!()
     }
 }
+   
+       
+   
 
-#[cfg(target_os = "unix")]
-mod platform {
+#[cfg(not(windows))]
+pub mod platform {
+    use std::os::fd::AsRawFd;
+
+    use libc::termios;
 
     pub fn set_non_blocking_read() -> std::io::Result<()> {
         todo!()
     }
 
-    pub fn enable_raw_mode() -> std::io::Result<()> {
-        todo()
+    pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
+    where
+        S: AsRawFd,
+    {
+        let fd = s.as_raw_fd();
+
+        let mut opts: termios = unsafe { std::mem::zeroed() };
+
+        unsafe {
+            libc::tcgetattr(fd, &mut opts);
+        }
+
+        opts.c_lflag &= !(libc::ECHO | libc::ICANON);
+
+        if unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &mut opts) } == -1 {
+
+        }
+
+
+        Ok(())
     }
+
+    
 }
+
+#[cfg(windows)]
+pub trait RawOs: AsRawHandle {}
+
+#[cfg(windows)]
+impl<T> RawOs for T where T: std::os::windows::io::AsRawHandle { }
+
+#[cfg(not(windows))]
+pub trait RawOs: AsRawFd {}
+
+#[cfg(not(windows))]
+impl<T> RawOs for T where T: AsRawFd { }
 
 pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
 where
-    S: AsRawHandle,
+    S: RawOs,
 {
     platform::enable_raw_mode(s)
 }
