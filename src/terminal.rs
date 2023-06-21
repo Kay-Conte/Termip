@@ -1,17 +1,20 @@
-use std::os::fd::AsRawFd;
-
 #[cfg(windows)]
 pub mod platform {
 
     use std::{
-        io::{ErrorKind, Write, Write},
+        io::{Error, ErrorKind, Write},
         os::windows::prelude::AsRawHandle,
     };
 
     use winapi::um::{
-        consoleapi::{GetConsoleMode, SetConsoleMode, ReadConsoleInputW},
-        wincon::{ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT, ENABLE_PROCESSED_OUTPUT, PeekConsoleInputW, SetConsoleCursorPosition},
-        winnt::HANDLE, wincontypes::{INPUT_RECORD, COORD},
+        consoleapi::{GetConsoleMode, ReadConsoleInputW, SetConsoleMode},
+        handleapi::INVALID_HANDLE_VALUE,
+        wincon::{
+            PeekConsoleInputW, SetConsoleCursorPosition, ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT,
+            ENABLE_PROCESSED_INPUT, ENABLE_PROCESSED_OUTPUT,
+        },
+        wincontypes::{COORD, INPUT_RECORD},
+        winnt::HANDLE,
     };
 
     use crate::{events::Event, key::Key};
@@ -97,6 +100,7 @@ pub mod platform {
             return Err(Error::last_os_error());
         }
 
+    /// the stdin of the program you want to set. This has no effect on non stdin files.
         if records_read == 0 {
             return Ok(None);
         }
@@ -113,7 +117,7 @@ pub mod platform {
         match unsafe { records[0].EventType } {
             KEY_EVENT => {
                 let key_event = unsafe { records[0].Event.KeyEvent() };
-   
+
                 let key: Key = (*key_event).into();
 
                 Ok(Some(Event::Key(key)))
@@ -137,23 +141,34 @@ pub mod platform {
 
         Ok(())
     }
-    
-    pub fn try_read_mouse_event(stdin: ()) -> std::io::Result<()> {
-        unimplemented!()
-    }
 }
-   
-       
-   
 
 #[cfg(not(windows))]
 pub mod platform {
-    use std::os::fd::AsRawFd;
+    use std::{io::Error, os::fd::AsRawFd};
 
-    use libc::termios;
+    use libc::{fcntl, termios, TCSAFLUSH, F_GETFL, O_NONBLOCK, F_SETFL};
 
-    pub fn set_non_blocking_read() -> std::io::Result<()> {
-        todo!()
+    pub fn set_non_blocking_read<S>(s: &mut S) -> std::io::Result<()>
+    where
+        S: AsRawFd,
+    {
+        let fd = s.as_raw_fd();
+
+        let mut flags = unsafe { fcntl(fd, F_GETFL, 0) };
+
+        if flags == -1 {
+    /// the stdin of the program you want to set. This has no effect on non stdin files.
+            return Err(Error::last_os_error());
+        }
+        
+        flags |= O_NONBLOCK;
+
+        if unsafe { fcntl(fd, F_SETFL, flags) } == -1 {
+            return Err(Error::last_os_error());
+        }
+
+        Ok(())
     }
 
     pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
@@ -164,34 +179,42 @@ pub mod platform {
 
         let mut opts: termios = unsafe { std::mem::zeroed() };
 
-        unsafe {
-            libc::tcgetattr(fd, &mut opts);
+        if unsafe { libc::tcgetattr(fd, &mut opts) } == -1 {
+            return Err(Error::last_os_error());
         }
 
         opts.c_lflag &= !(libc::ECHO | libc::ICANON);
 
-        if unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &mut opts) } == -1 {
-
+        if unsafe { libc::tcsetattr(fd, TCSAFLUSH, &mut opts) } == -1 {
+            return Err(Error::last_os_error());
         }
-
 
         Ok(())
     }
 
-    
+    pub fn try_read_event<S>(s: &mut S) -> std::io::Result<()>
+    where
+        S: AsRawFd,
+    {
+        let _fd = s.as_raw_fd();
+
+        
+
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
-pub trait RawOs: AsRawHandle {}
+pub trait RawOs: std::os::windows::io::AsRawHandle {}
 
 #[cfg(windows)]
-impl<T> RawOs for T where T: std::os::windows::io::AsRawHandle { }
+impl<T> RawOs for T where T: std::os::windows::io::AsRawHandle {}
 
 #[cfg(not(windows))]
-pub trait RawOs: AsRawFd {}
+pub trait RawOs: std::os::fd::AsRawFd {}
 
 #[cfg(not(windows))]
-impl<T> RawOs for T where T: AsRawFd { }
+impl<T> RawOs for T where T: std::os::fd::AsRawFd {}
 
 pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
 where
@@ -200,9 +223,11 @@ where
     platform::enable_raw_mode(s)
 }
 
-/// This function is intended for use in pair with `try_read_event`. This function does nothing on windows platforms, but makes the passed in file non-blocking for reads on posix compliance systems. If this function is called, you can be sure that the buffer is non-blocking for any calls to `try_read_event` for any platform
-pub fn set_non_blocking_read() -> std::io::Result<()> {
-    platform::set_non_blocking_read()
+pub fn try_read_event<S>(s: &mut S) -> std::io::Result<()>
+where
+    S: RawOs,
+{
+    platform::try_read_event(s)
 }
 
 #[cfg(test)]

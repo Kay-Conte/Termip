@@ -1,4 +1,0 @@
-[cargo]
-
-[build]
-targets = ["windows", "unix"]
