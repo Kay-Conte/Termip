@@ -1,3 +1,7 @@
+use std::io::Read;
+
+use crate::events::Event;
+
 #[cfg(windows)]
 pub mod platform {
 
@@ -100,7 +104,7 @@ pub mod platform {
             return Err(Error::last_os_error());
         }
 
-    /// the stdin of the program you want to set. This has no effect on non stdin files.
+        /// the stdin of the program you want to set. This has no effect on non stdin files.
         if records_read == 0 {
             return Ok(None);
         }
@@ -145,9 +149,22 @@ pub mod platform {
 
 #[cfg(not(windows))]
 pub mod platform {
-    use std::{io::Error, os::fd::AsRawFd};
+    use std::{io::{Error, Read, BufReader}, os::fd::AsRawFd};
 
-    use libc::{fcntl, termios, TCSAFLUSH, F_GETFL, O_NONBLOCK, F_SETFL};
+    use libc::{
+        fcntl, fd_set, poll, pollfd, select, termios, timeval, FD_SET, FD_ZERO, F_GETFL, F_SETFL,
+        O_NONBLOCK, POLLIN, TCSAFLUSH,
+    };
+
+    use crate::events::{Event, Key};
+
+    pub fn env_is_xterm() -> bool {
+        let Ok(env) = std::env::var("TERM") else {
+            return false;
+        };
+
+        env == "xterm"
+    }
 
     pub fn set_non_blocking_read<S>(s: &mut S) -> std::io::Result<()>
     where
@@ -158,10 +175,9 @@ pub mod platform {
         let mut flags = unsafe { fcntl(fd, F_GETFL, 0) };
 
         if flags == -1 {
-    /// the stdin of the program you want to set. This has no effect on non stdin files.
             return Err(Error::last_os_error());
         }
-        
+
         flags |= O_NONBLOCK;
 
         if unsafe { fcntl(fd, F_SETFL, flags) } == -1 {
@@ -192,17 +208,35 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn try_read_event<S>(s: &mut S) -> std::io::Result<()>
+    pub fn read_event<S>(s: &mut S) -> std::io::Result<Option<Event>> where S: AsRawFd + Read  {
+        let mut reader = s.bytes();
+
+        let mut buf: Vec<u8> = Vec::new();
+
+        Ok(Some(Event::Key(Key::Char(reader.next().expect("Should be a byte if called from try read").unwrap() as char)) ))
+    }
+
+    pub fn try_read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
     where
-        S: AsRawFd,
+        S: AsRawFd + Read, 
     {
-        let _fd = s.as_raw_fd();
+        let fd = s.as_raw_fd();
 
-        
+        let mut pfd = pollfd {
+            fd,
+            events: POLLIN,
+            revents: 0,
+        };
 
-        Ok(())
+        match unsafe { poll(&mut pfd as *mut _, 1, 0) } {
+            -1 => Err(Error::last_os_error()),
+            0 => Ok(None), 
+            _ => read_event(s)
+        }
     }
 }
+
+
 
 #[cfg(windows)]
 pub trait RawOs: std::os::windows::io::AsRawHandle {}
@@ -223,9 +257,9 @@ where
     platform::enable_raw_mode(s)
 }
 
-pub fn try_read_event<S>(s: &mut S) -> std::io::Result<()>
+pub fn try_read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
 where
-    S: RawOs,
+    S: RawOs + Read,
 {
     platform::try_read_event(s)
 }
