@@ -1,5 +1,5 @@
 [package]
-name = "Termip"
+name = "termip"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,6 @@ edition = "2021"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["consoleapi", "handleapi", "fileapi", "winbase", "winuser", "wincon"] }
-
 
 [target.'cfg(not(windows))'.dependencies]
 libc = "0.2.146"

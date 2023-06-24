@@ -149,14 +149,14 @@ pub mod platform {
 
 #[cfg(not(windows))]
 pub mod platform {
-    use std::{io::{Error, Read, BufReader}, os::fd::AsRawFd};
-
-    use libc::{
-        fcntl, fd_set, poll, pollfd, select, termios, timeval, FD_SET, FD_ZERO, F_GETFL, F_SETFL,
-        O_NONBLOCK, POLLIN, TCSAFLUSH,
+    use std::{
+        io::{Error, Read},
+        os::fd::AsRawFd,
     };
 
-    use crate::events::{Event, Key};
+    use libc::{fcntl, poll, pollfd, termios, F_GETFL, F_SETFL, O_NONBLOCK, POLLIN, TCSAFLUSH};
+
+    use crate::events::Event;
 
     pub fn env_is_xterm() -> bool {
         let Ok(env) = std::env::var("TERM") else {
@@ -208,17 +208,22 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn read_event<S>(s: &mut S) -> std::io::Result<Option<Event>> where S: AsRawFd + Read  {
-        let mut reader = s.bytes();
+    pub fn read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
+    where
+        S: AsRawFd + Read,
+    {
+        let mut buf = [0; 10];
 
-        let mut buf: Vec<u8> = Vec::new();
+        let bytes = s.read(&mut buf)?;
 
-        Ok(Some(Event::Key(Key::Char(reader.next().expect("Should be a byte if called from try read").unwrap() as char)) ))
+        let str = String::from_utf8(buf[..bytes].to_vec()).expect("String failed to parse");
+
+        Ok(Event::try_from_str(&str))
     }
 
     pub fn try_read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
     where
-        S: AsRawFd + Read, 
+        S: AsRawFd + Read,
     {
         let fd = s.as_raw_fd();
 
@@ -230,13 +235,13 @@ pub mod platform {
 
         match unsafe { poll(&mut pfd as *mut _, 1, 0) } {
             -1 => Err(Error::last_os_error()),
-            0 => Ok(None), 
-            _ => read_event(s)
+            0 => Ok(None),
+            _ => {
+                read_event(s)
+            }
         }
     }
 }
-
-
 
 #[cfg(windows)]
 pub trait RawOs: std::os::windows::io::AsRawHandle {}
