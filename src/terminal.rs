@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use crate::events::Event;
+use crate::events::EventBatch;
 
 #[cfg(windows)]
 pub mod platform {
@@ -22,6 +22,10 @@ pub mod platform {
     };
 
     use crate::{events::Event, key::Key};
+
+    pub trait RawOs: std::os::windows::io::AsRawHandle {}
+
+    impl<T> RawOs for T where T: std::os::windows::io::AsRawHandle {}
 
     pub fn set_non_blocking_read() -> std::io::Result<()> {
         Ok(())
@@ -151,20 +155,19 @@ pub mod platform {
 pub mod platform {
     use std::{
         io::{Error, Read},
-        os::fd::AsRawFd,
+        os::fd::AsRawFd, ffi::c_int,
     };
 
-    use libc::{fcntl, poll, pollfd, termios, F_GETFL, F_SETFL, O_NONBLOCK, POLLIN, TCSAFLUSH};
+    use libc::{
+        fcntl, ioctl, termios, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK,
+        TCSAFLUSH,
+    };
 
-    use crate::events::Event;
+    use crate::{events::EventBatch, parse::unix::parse_entire_buffer};
 
-    pub fn env_is_xterm() -> bool {
-        let Ok(env) = std::env::var("TERM") else {
-            return false;
-        };
+    pub trait RawOs: std::os::fd::AsRawFd {}
 
-        env == "xterm"
-    }
+    impl<T> RawOs for T where T: std::os::fd::AsRawFd {}
 
     pub fn set_non_blocking_read<S>(s: &mut S) -> std::io::Result<()>
     where
@@ -208,65 +211,41 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
-    where
-        S: AsRawFd + Read,
-    {
-        let mut buf = [0; 10];
-
-        let bytes = s.read(&mut buf)?;
-
-        let str = String::from_utf8(buf[..bytes].to_vec()).expect("String failed to parse");
-
-        Ok(Event::try_from_str(&str))
-    }
-
-    pub fn try_read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
+    pub fn try_read_batch<S>(s: &mut S) -> std::io::Result<EventBatch>
     where
         S: AsRawFd + Read,
     {
         let fd = s.as_raw_fd();
 
-        let mut pfd = pollfd {
-            fd,
-            events: POLLIN,
-            revents: 0,
-        };
+        let mut bytes_available: c_int = unsafe { std::mem::zeroed() };
 
-        match unsafe { poll(&mut pfd as *mut _, 1, 0) } {
-            -1 => Err(Error::last_os_error()),
-            0 => Ok(None),
-            _ => {
-                read_event(s)
-            }
+        if unsafe { ioctl(fd, FIONREAD, &mut bytes_available) } == -1 {
+            return Err(std::io::Error::last_os_error());
         }
+
+        let mut buf = vec![0; bytes_available as usize];
+
+        s.read_exact(&mut buf)?;
+
+        let batch = parse_entire_buffer(buf);
+
+        Ok(batch)
     }
 }
 
-#[cfg(windows)]
-pub trait RawOs: std::os::windows::io::AsRawHandle {}
-
-#[cfg(windows)]
-impl<T> RawOs for T where T: std::os::windows::io::AsRawHandle {}
-
-#[cfg(not(windows))]
-pub trait RawOs: std::os::fd::AsRawFd {}
-
-#[cfg(not(windows))]
-impl<T> RawOs for T where T: std::os::fd::AsRawFd {}
-
 pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
 where
-    S: RawOs,
+    S: platform::RawOs,
 {
     platform::enable_raw_mode(s)
 }
 
-pub fn try_read_event<S>(s: &mut S) -> std::io::Result<Option<Event>>
+
+pub fn try_read_batch<S>(s: &mut S) -> std::io::Result<EventBatch>
 where
-    S: RawOs + Read,
+    S: platform::RawOs + Read,
 {
-    platform::try_read_event(s)
+    platform::try_read_batch(s)
 }
 
 #[cfg(test)]

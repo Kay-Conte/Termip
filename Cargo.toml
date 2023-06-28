@@ -10,3 +10,6 @@ winapi = { version = "0.3", features = ["consoleapi", "handleapi", "fileapi", "w
 
 [target.'cfg(not(windows))'.dependencies]
 libc = "0.2.146"
+
+[build]
+opt-level = "z"
