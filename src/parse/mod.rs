@@ -1,5 +1,5 @@
-#[cfg(not(windows))]
+#[cfg(target_family = "unix")]
 pub mod unix;
 
-#[cfg(windows)]
+#[cfg(target_family = "windows")]
 pub mod windows;

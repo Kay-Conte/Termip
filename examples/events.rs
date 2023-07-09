@@ -6,14 +6,14 @@ use termip::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut s = stdin();
+    let mut inp = stdin();
 
-    enable_raw_mode(&mut s)?;
+    enable_raw_mode(&mut inp)?;
 
     loop {
-        let batch = try_read_batch(&mut s)?;
-
-        if batch.pressed(KeyCode::LeftArrow) {
+        let batch = try_read_batch(&mut inp)?;
+        
+        if batch.pressed(KeyCode::RightArrow) {
             println!("Left arrow is pressed");
         }
 

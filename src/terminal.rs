@@ -1,8 +1,8 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use crate::events::EventBatch;
 
-#[cfg(windows)]
+#[cfg(target_family = "windows")]
 pub mod platform {
 
     use std::{
@@ -151,16 +151,17 @@ pub mod platform {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_family = "unix")]
 pub mod platform {
     use std::{
-        io::{Error, Read},
-        os::fd::AsRawFd, ffi::c_int,
+        ffi::c_int,
+        io::{Error, Read, Write},
+        os::fd::AsRawFd,
     };
 
     use libc::{
-        fcntl, ioctl, termios, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK,
-        TCSAFLUSH,
+        fcntl, ioctl, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK, TCSAFLUSH,
+        TIOCGWINSZ,
     };
 
     use crate::{events::EventBatch, parse::unix::parse_entire_buffer};
@@ -169,11 +170,11 @@ pub mod platform {
 
     impl<T> RawOs for T where T: std::os::fd::AsRawFd {}
 
-    pub fn set_non_blocking_read<S>(s: &mut S) -> std::io::Result<()>
+    pub fn set_non_blocking_read<S>(read: &mut S) -> std::io::Result<()>
     where
         S: AsRawFd,
     {
-        let fd = s.as_raw_fd();
+        let fd = read.as_raw_fd();
 
         let mut flags = unsafe { fcntl(fd, F_GETFL, 0) };
 
@@ -190,11 +191,11 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
+    pub fn enable_raw_mode<Input>(input: &mut Input) -> std::io::Result<()>
     where
-        S: AsRawFd,
+        Input: AsRawFd,
     {
-        let fd = s.as_raw_fd();
+        let fd = input.as_raw_fd();
 
         let mut opts: termios = unsafe { std::mem::zeroed() };
 
@@ -211,11 +212,11 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn try_read_batch<S>(s: &mut S) -> std::io::Result<EventBatch>
+    pub fn try_read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
     where
-        S: AsRawFd + Read,
+        Input: AsRawFd + Read,
     {
-        let fd = s.as_raw_fd();
+        let fd = input.as_raw_fd();
 
         let mut bytes_available: c_int = unsafe { std::mem::zeroed() };
 
@@ -225,27 +226,136 @@ pub mod platform {
 
         let mut buf = vec![0; bytes_available as usize];
 
-        s.read_exact(&mut buf)?;
+        input.read_exact(&mut buf)?;
 
         let batch = parse_entire_buffer(buf);
 
         Ok(batch)
     }
+
+    pub fn request_cursor_position<Output>(output: &mut Output) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
+        write!(output, "\x1b[6n")?;
+
+        Ok(())
+    }
+
+    pub fn get_cursor_position<Output, Input>(output: &mut Output, input: &mut Input) -> std::io::Result<()> where Output: Write, Input: AsRawFd + Read{
+        request_cursor_position(output)?;
+
+        output.flush()?;
+
+        let batch = try_read_batch(input)?;
+
+        let ev = batch.into_iter().find(|i| i.)
+
+
+        todo!();
+
+        Ok(())
+    }
+
+    pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
+        write!(output, "\x1b[{};{}H", line, column)?;
+
+        Ok(())
+    }
+
+    pub fn hide_cursor<Output>(output: &mut Output) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
+        write!(output, "\x1b[?25l")?;
+
+        Ok(())
+    }
+
+    pub fn show_cursor<Output>(output: &mut Output) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
+        write!(output, "\x1b[?25h")?;
+
+        Ok(())
+    }
+
+    pub fn size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
+    where
+        Output: AsRawFd,
+    {
+        let fd = output.as_raw_fd();
+
+        let mut size: winsize = unsafe { std::mem::zeroed() };
+
+        if unsafe { ioctl(fd, TIOCGWINSZ, &mut size) } == -1 {
+            return Err(Error::last_os_error());
+        }
+
+        Ok((size.ws_row, size.ws_col))
+    }
+
+    pub fn erase_entire_screen<S>(s: &mut S) -> std::io::Result<()>
+    where
+        S: Write,
+    {
+        write!(s, "\x1b[2J")?;
+
+        Ok(())
+    }
 }
 
-pub fn enable_raw_mode<S>(s: &mut S) -> std::io::Result<()>
+pub fn enable_raw_mode<Input>(input: &mut Input) -> std::io::Result<()>
 where
-    S: platform::RawOs,
+    Input: platform::RawOs,
 {
-    platform::enable_raw_mode(s)
+    platform::enable_raw_mode(input)
 }
 
-
-pub fn try_read_batch<S>(s: &mut S) -> std::io::Result<EventBatch>
+pub fn try_read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
 where
-    S: platform::RawOs + Read,
+    Input: platform::RawOs + Read,
 {
-    platform::try_read_batch(s)
+    platform::try_read_batch(input)
+}
+
+pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    platform::move_cursor(output, line, column)
+}
+
+pub fn hide_cursor<Output>(output: &mut Output) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    platform::hide_cursor(output)
+}
+
+pub fn show_cursor<Output>(output: &mut Output) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    platform::show_cursor(output)
+}
+
+pub fn size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
+where
+    Output: platform::RawOs,
+{
+    platform::size(output)
+}
+
+pub fn erase_entire_screen<Output>(output: &mut Output) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    platform::erase_entire_screen(output)
 }
 
 #[cfg(test)]
