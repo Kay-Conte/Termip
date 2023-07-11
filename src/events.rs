@@ -6,12 +6,10 @@ pub struct EventBatch {
 
 impl EventBatch {
     pub fn pressed(&self, target: KeyCode) -> bool {
-        self.internal.iter().any(|i| {
-            match i {
-                Event::Key(KeyEvent { code, .. } ) => *code == target,
-                _ => false,
-            }
-        }) 
+        self.internal.iter().any(|i| match i {
+            Event::Key(KeyEvent { code, .. }) => *code == target,
+            _ => false,
+        })
     }
 }
 
@@ -43,7 +41,7 @@ pub enum KeyModifiers {
     Meta = 0b0010_0000,
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum KeyCode {
     Char(char),
 
@@ -66,19 +64,23 @@ pub enum KeyCode {
     F(u8),
 }
 
+#[derive(Debug)]
 pub struct KeyEvent {
     pub code: KeyCode,
 
     pub modifiers: KeyModifiers,
 }
 
+#[derive(Debug)]
 pub enum Event {
     Key(KeyEvent),
 
     FocusGained,
     FocusLost,
 
-    UnhandledControlSequence(String),
+    Cursor(u16, u16),
+
+    UnrecognizedControlSequence,
     OutOfRange,
 }
 

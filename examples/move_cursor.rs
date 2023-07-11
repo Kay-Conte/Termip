@@ -1,6 +1,9 @@
-use std::{io::{stdout, stdin, Write, Stdout}, time::Duration};
+use std::{
+    io::{stdin, stdout, Stdout, Write},
+    time::Duration,
+};
 
-use termip::terminal::{move_cursor, enable_raw_mode, erase_entire_screen, size};
+use termip::terminal::{enable_raw_mode, erase_entire_screen, move_cursor, size};
 
 fn move_and_wait(s: &mut Stdout, line: u16, column: u16) -> std::io::Result<()> {
     move_cursor(s, line, column)?;

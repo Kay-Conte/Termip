@@ -1,6 +1,8 @@
 use std::io::{Error, ErrorKind, Write};
 
-use termip::terminal::{hide_cursor, platform::RawOs, show_cursor, erase_entire_screen, move_cursor};
+use termip::terminal::{
+    erase_entire_screen, hide_cursor, move_cursor, platform::RawOs, show_cursor,
+};
 
 #[derive(Debug)]
 pub enum ClearType {

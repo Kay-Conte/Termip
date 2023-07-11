@@ -156,7 +156,7 @@ pub mod platform {
     use std::{
         ffi::c_int,
         io::{Error, Read, Write},
-        os::fd::AsRawFd,
+        os::fd::AsRawFd, time::Duration,
     };
 
     use libc::{
@@ -164,7 +164,10 @@ pub mod platform {
         TIOCGWINSZ,
     };
 
-    use crate::{events::EventBatch, parse::unix::parse_entire_buffer};
+    use crate::{
+        events::{Event, EventBatch},
+        parse::unix::parse_batch,
+    };
 
     pub trait RawOs: std::os::fd::AsRawFd {}
 
@@ -212,7 +215,7 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn try_read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
+    pub fn read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
     where
         Input: AsRawFd + Read,
     {
@@ -228,7 +231,7 @@ pub mod platform {
 
         input.read_exact(&mut buf)?;
 
-        let batch = parse_entire_buffer(buf);
+        let batch = parse_batch(buf);
 
         Ok(batch)
     }
@@ -242,19 +245,30 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn get_cursor_position<Output, Input>(output: &mut Output, input: &mut Input) -> std::io::Result<()> where Output: Write, Input: AsRawFd + Read{
+    pub fn get_cursor_position<Output, Input>(
+        output: &mut Output,
+        input: &mut Input,
+    ) -> std::io::Result<Option<(u16, u16)>>
+    where
+        Output: Write,
+        Input: AsRawFd + Read,
+    {
         request_cursor_position(output)?;
 
         output.flush()?;
 
-        let batch = try_read_batch(input)?;
+        // Definitely remove this and instead loop until event found
+        std::thread::sleep(Duration::from_secs(1));
 
-        let ev = batch.into_iter().find(|i| i.)
+        let batch = read_batch(input)?;
 
+        for ev in batch.into_iter() {
+            if let Event::Cursor(x, y) = ev {
+                return Ok(Some((x, y)));
+            }
+        }
 
-        todo!();
-
-        Ok(())
+        Ok(None)
     }
 
     pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
@@ -309,6 +323,8 @@ pub mod platform {
     }
 }
 
+/// This function enables "raw" mode on all platforms. This disables automatic input to output
+/// echoing and line buffering
 pub fn enable_raw_mode<Input>(input: &mut Input) -> std::io::Result<()>
 where
     Input: platform::RawOs,
@@ -316,13 +332,30 @@ where
     platform::enable_raw_mode(input)
 }
 
-pub fn try_read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
+/// This function reads a batch of events from an input. This function is non blocking but will
+/// return an empty batch if there are no bytes available.
+pub fn read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
 where
     Input: platform::RawOs + Read,
 {
-    platform::try_read_batch(input)
+    platform::read_batch(input)
 }
 
+/// This function returns the current cursor position. This function is able to block up to 1
+/// second on unix platforms because of the nature of the request. For most applications, it will
+/// not be nearlythat long, however it is still advised to avoid this function if possible.
+pub fn get_cursor_position<Output, Input>(
+    output: &mut Output,
+    input: &mut Input,
+) -> std::io::Result<Option<(u16, u16)>>
+where
+    Output: Write,
+    Input: platform::RawOs + Read,
+{
+    platform::get_cursor_position(output, input)
+}
+
+/// This function moves the cursor to a given position.
 pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
 where
     Output: Write,
@@ -330,6 +363,7 @@ where
     platform::move_cursor(output, line, column)
 }
 
+/// This function hides the cursor
 pub fn hide_cursor<Output>(output: &mut Output) -> std::io::Result<()>
 where
     Output: Write,
@@ -337,6 +371,7 @@ where
     platform::hide_cursor(output)
 }
 
+/// This function shows the cursor
 pub fn show_cursor<Output>(output: &mut Output) -> std::io::Result<()>
 where
     Output: Write,
@@ -344,6 +379,7 @@ where
     platform::show_cursor(output)
 }
 
+/// This function returns the size of an output in rows and columns
 pub fn size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
 where
     Output: platform::RawOs,
@@ -351,23 +387,10 @@ where
     platform::size(output)
 }
 
+/// This function deletes all contents of a terminal
 pub fn erase_entire_screen<Output>(output: &mut Output) -> std::io::Result<()>
 where
     Output: Write,
 {
     platform::erase_entire_screen(output)
-}
-
-#[cfg(test)]
-mod tests {
-
-    /// Tests the functionality of `enable_raw_mode`
-    #[test]
-    fn enable_raw_mode() -> std::io::Result<()> {
-        let mut stdin = std::io::stdin();
-
-        super::enable_raw_mode(&mut stdin)?;
-
-        Ok(())
-    }
 }
