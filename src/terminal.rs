@@ -156,12 +156,13 @@ pub mod platform {
     use std::{
         ffi::c_int,
         io::{Error, Read, Write},
-        os::fd::AsRawFd, time::Duration,
+        os::fd::AsRawFd,
+        time::Duration,
     };
 
     use libc::{
         fcntl, ioctl, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK, TCSAFLUSH,
-        TIOCGWINSZ,
+        TIOCGWINSZ, pollfd, poll,
     };
 
     use crate::{
@@ -236,6 +237,28 @@ pub mod platform {
         Ok(batch)
     }
 
+    // pub fn read_batch_blocking<Input>(input: &mut Input) -> std::io::Result<EventBatch>
+    // where
+    //     Input: AsRawFd + Read,
+    // {
+    //
+    //     let fd = input.as_raw_fd();
+    //
+    //     let mut bytes_available: c_int = unsafe { std::mem::zeroed() };
+    //
+    //     let timeout: 
+    //
+    //     if unsafe { poll(fd, FIONREAD, &mut bytes_available) } == -1 {
+    //         return Err(std::io::Error::last_os_error());
+    //     }
+    //
+    //     let mut buf = vec![0; bytes_available as usize];
+    //
+    //     let batch = parse_batch(buf);
+    //
+    //     Ok(batch);
+    // }
+
     pub fn request_cursor_position<Output>(output: &mut Output) -> std::io::Result<()>
     where
         Output: Write,
@@ -257,8 +280,8 @@ pub mod platform {
 
         output.flush()?;
 
-        // Definitely remove this and instead loop until event found
-        std::thread::sleep(Duration::from_secs(1));
+        // Definitely remove this and use a read blocking implementation
+        std::thread::sleep(Duration::from_millis(10));
 
         let batch = read_batch(input)?;
 

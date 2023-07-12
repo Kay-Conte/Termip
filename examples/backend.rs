@@ -81,7 +81,7 @@ where
     Out: RawOs + Write,
 {
     // Can be implemented
-    fn draw<'a, I>(&mut self, content: I) -> Result<(), Error>
+    fn draw<'a, I>(&mut self, _content: I) -> Result<(), Error>
     where
         I: Iterator<Item = (u16, u16, &'a Cell)>,
     {
