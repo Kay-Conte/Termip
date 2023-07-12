@@ -9,9 +9,9 @@
 /// A module providing event structures for handling input from a terminal
 pub mod events;
 
-/// A module providing parsing capabilities for windows and unix platforms. This module will be
-/// merged to "events"
-pub mod parse;
+/// A module providing styling functionality for the terminal
+pub mod style;
 
 /// A module providing utilities to manipulate the terminal
 pub mod terminal;
+

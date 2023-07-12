@@ -156,20 +156,15 @@ pub mod platform {
     use std::{
         ffi::c_int,
         io::{Error, Read, Write},
-        os::fd::AsRawFd
+        os::fd::AsRawFd,
     };
 
     use libc::{
-        fcntl, ioctl, poll, pollfd, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK,
-        POLLIN, TCSAFLUSH, TIOCGWINSZ, nfds_t,
+        fcntl, ioctl, nfds_t, poll, pollfd, termios, winsize, FIONREAD, F_GETFL, F_SETFL,
+        O_NONBLOCK, POLLIN, TCSAFLUSH, TIOCGWINSZ,
     };
 
-
-
-    use crate::{
-        events::{Event, EventBatch},
-        parse::unix::parse_batch,
-    };
+    use crate::{events::{unix::parse_batch, Event, EventBatch}, style::Color};
 
     pub trait RawOs: std::os::fd::AsRawFd {}
 
@@ -238,11 +233,17 @@ pub mod platform {
         Ok(())
     }
 
-    pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+    pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
         write!(output, "\x1b[?1049h")
     }
 
-    pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+    pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()>
+    where
+        Output: Write,
+    {
         write!(output, "\x1b[?1049l")
     }
 
@@ -282,7 +283,7 @@ pub mod platform {
             revents: 0,
         }];
 
-        if unsafe { poll(pfd.as_mut_ptr() , 1 as nfds_t, timeout as c_int) } == -1 {
+        if unsafe { poll(pfd.as_mut_ptr(), 1 as nfds_t, timeout as c_int) } == -1 {
             return Err(std::io::Error::last_os_error());
         }
 
@@ -340,10 +341,9 @@ pub mod platform {
                     return Ok(Some((x, y)));
                 }
             }
-
         }
 
-        return Ok(None)
+        return Ok(None);
     }
 
     pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
@@ -399,14 +399,19 @@ where
     platform::enable_raw_mode(input)
 }
 
-
 /// This function enters an alternate view on all platforms.
-pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()>
+where
+    Output: Write,
+{
     platform::enter_alternate_buffer(output)
 }
 
 /// This function leaves an alternate view on all platforms.
-pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()>
+where
+    Output: Write,
+{
     platform::leave_alternate_buffer(output)
 }
 
@@ -427,7 +432,6 @@ where
 {
     platform::read_batch(input)
 }
-
 
 /// This function reads a batch of events from an input. This function is a blocking call and will
 /// only return an empty batch on timeout.

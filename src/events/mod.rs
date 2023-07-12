@@ -1,3 +1,9 @@
+#[cfg(target_family = "unix")]
+pub mod unix;
+
+#[cfg(target_family = "windows")]
+pub mod windows;
+
 use std::vec::IntoIter;
 
 #[derive(Debug)]
