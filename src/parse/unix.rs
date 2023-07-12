@@ -107,7 +107,7 @@ where
         }
 
         let Some(byte) = bytes.next() else {
-            return Event::UnrecognizedControlSequence; 
+            return Event::UnrecognizedControlSequence;
         };
 
         match byte {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use termip::terminal::{
-    self, enable_raw_mode, erase_entire_screen, hide_cursor, move_cursor, show_cursor,
+    self, enable_raw_mode, erase_entire_screen, hide_cursor, move_cursor, show_cursor, disable_raw_mode,
 };
 
 fn main() -> std::io::Result<()> {
@@ -14,7 +14,7 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode(&mut inp)?;
     erase_entire_screen(&mut out)?;
 
-    let (x, y) = terminal::size(&out)?;
+    let (x, y) = terminal::get_size(&out)?;
 
     let x = x / 2;
     let y = y / 2;
@@ -36,6 +36,7 @@ fn main() -> std::io::Result<()> {
     }
 
     move_cursor(&mut out, 0, 0)?;
+    disable_raw_mode(&mut inp)?;
 
     Ok(())
 }

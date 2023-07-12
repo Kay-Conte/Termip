@@ -156,14 +156,15 @@ pub mod platform {
     use std::{
         ffi::c_int,
         io::{Error, Read, Write},
-        os::fd::AsRawFd,
-        time::Duration,
+        os::fd::AsRawFd
     };
 
     use libc::{
-        fcntl, ioctl, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK, TCSAFLUSH,
-        TIOCGWINSZ, pollfd, poll,
+        fcntl, ioctl, poll, pollfd, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK,
+        POLLIN, TCSAFLUSH, TIOCGWINSZ, nfds_t,
     };
+
+
 
     use crate::{
         events::{Event, EventBatch},
@@ -216,6 +217,35 @@ pub mod platform {
         Ok(())
     }
 
+    pub fn disable_raw_mode<Input>(input: &mut Input) -> std::io::Result<()>
+    where
+        Input: AsRawFd,
+    {
+        let fd = input.as_raw_fd();
+
+        let mut opts: termios = unsafe { std::mem::zeroed() };
+
+        if unsafe { libc::tcgetattr(fd, &mut opts) } == -1 {
+            return Err(Error::last_os_error());
+        }
+
+        opts.c_lflag |= libc::ECHO | libc::ICANON;
+
+        if unsafe { libc::tcsetattr(fd, TCSAFLUSH, &mut opts) } == -1 {
+            return Err(Error::last_os_error());
+        }
+
+        Ok(())
+    }
+
+    pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+        write!(output, "\x1b[?1049h")
+    }
+
+    pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+        write!(output, "\x1b[?1049l")
+    }
+
     pub fn read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
     where
         Input: AsRawFd + Read,
@@ -237,35 +267,49 @@ pub mod platform {
         Ok(batch)
     }
 
-    // pub fn read_batch_blocking<Input>(input: &mut Input) -> std::io::Result<EventBatch>
-    // where
-    //     Input: AsRawFd + Read,
-    // {
-    //
-    //     let fd = input.as_raw_fd();
-    //
-    //     let mut bytes_available: c_int = unsafe { std::mem::zeroed() };
-    //
-    //     let timeout: 
-    //
-    //     if unsafe { poll(fd, FIONREAD, &mut bytes_available) } == -1 {
-    //         return Err(std::io::Error::last_os_error());
-    //     }
-    //
-    //     let mut buf = vec![0; bytes_available as usize];
-    //
-    //     let batch = parse_batch(buf);
-    //
-    //     Ok(batch);
-    // }
+    pub fn read_batch_blocking<Input>(
+        input: &mut Input,
+        timeout: u32,
+    ) -> std::io::Result<EventBatch>
+    where
+        Input: AsRawFd + Read,
+    {
+        let fd = input.as_raw_fd();
+
+        let mut pfd = [pollfd {
+            fd,
+            events: POLLIN,
+            revents: 0,
+        }];
+
+        if unsafe { poll(pfd.as_mut_ptr() , 1 as nfds_t, timeout as c_int) } == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+
+        if pfd[0].revents & POLLIN == 0 {
+            return Ok(EventBatch::empty());
+        }
+
+        let mut bytes_available = 0;
+
+        if unsafe { ioctl(fd, FIONREAD, &mut bytes_available) } == -1 {
+            return Err(std::io::Error::last_os_error());
+        }
+
+        let mut buf = vec![0; bytes_available as usize];
+
+        input.read_exact(&mut buf)?;
+
+        let batch = parse_batch(buf);
+
+        Ok(batch)
+    }
 
     pub fn request_cursor_position<Output>(output: &mut Output) -> std::io::Result<()>
     where
         Output: Write,
     {
-        write!(output, "\x1b[6n")?;
-
-        Ok(())
+        write!(output, "\x1b[6n")
     }
 
     pub fn get_cursor_position<Output, Input>(
@@ -280,48 +324,50 @@ pub mod platform {
 
         output.flush()?;
 
-        // Definitely remove this and use a read blocking implementation
-        std::thread::sleep(Duration::from_millis(10));
+        let start = std::time::Instant::now();
 
-        let batch = read_batch(input)?;
+        loop {
+            let passed = (std::time::Instant::now() - start).as_millis() as u32;
 
-        for ev in batch.into_iter() {
-            if let Event::Cursor(x, y) = ev {
-                return Ok(Some((x, y)));
+            if passed > 1000 {
+                break;
             }
+
+            let batch = read_batch_blocking(input, 1000 - passed)?;
+
+            for ev in batch.into_iter() {
+                if let Event::Cursor(x, y) = ev {
+                    return Ok(Some((x, y)));
+                }
+            }
+
         }
 
-        Ok(None)
+        return Ok(None)
     }
 
     pub fn move_cursor<Output>(output: &mut Output, line: u16, column: u16) -> std::io::Result<()>
     where
         Output: Write,
     {
-        write!(output, "\x1b[{};{}H", line, column)?;
-
-        Ok(())
+        write!(output, "\x1b[{};{}H", line, column)
     }
 
     pub fn hide_cursor<Output>(output: &mut Output) -> std::io::Result<()>
     where
         Output: Write,
     {
-        write!(output, "\x1b[?25l")?;
-
-        Ok(())
+        write!(output, "\x1b[?25l")
     }
 
     pub fn show_cursor<Output>(output: &mut Output) -> std::io::Result<()>
     where
         Output: Write,
     {
-        write!(output, "\x1b[?25h")?;
-
-        Ok(())
+        write!(output, "\x1b[?25h")
     }
 
-    pub fn size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
+    pub fn get_size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
     where
         Output: AsRawFd,
     {
@@ -340,9 +386,7 @@ pub mod platform {
     where
         S: Write,
     {
-        write!(s, "\x1b[2J")?;
-
-        Ok(())
+        write!(s, "\x1b[2J")
     }
 }
 
@@ -355,6 +399,26 @@ where
     platform::enable_raw_mode(input)
 }
 
+
+/// This function enters an alternate view on all platforms.
+pub fn enter_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+    platform::enter_alternate_buffer(output)
+}
+
+/// This function leaves an alternate view on all platforms.
+pub fn leave_alternate_buffer<Output>(output: &mut Output) -> std::io::Result<()> where Output: Write {
+    platform::leave_alternate_buffer(output)
+}
+
+/// This function disables "raw" mode on all platforms. This enables automatic input to output
+/// echoing and line buffering
+pub fn disable_raw_mode<Input>(input: &mut Input) -> std::io::Result<()>
+where
+    Input: platform::RawOs,
+{
+    platform::disable_raw_mode(input)
+}
+
 /// This function reads a batch of events from an input. This function is non blocking but will
 /// return an empty batch if there are no bytes available.
 pub fn read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
@@ -364,9 +428,20 @@ where
     platform::read_batch(input)
 }
 
-/// This function returns the current cursor position. This function is able to block up to 1
-/// second on unix platforms because of the nature of the request. For most applications, it will
-/// not be nearlythat long, however it is still advised to avoid this function if possible.
+
+/// This function reads a batch of events from an input. This function is a blocking call and will
+/// only return an empty batch on timeout.
+pub fn read_batch_blocking<Input>(input: &mut Input, timeout: u32) -> std::io::Result<EventBatch>
+where
+    Input: platform::RawOs + Read,
+{
+    platform::read_batch_blocking(input, timeout)
+}
+
+/// This function returns the current cursor position. This function requires the application be in
+/// raw mode or it will return `None` after 1 second. This function is able to block up to 1
+/// second on unix platforms because of the nature of the request. For most applications a call to
+/// this function will not be close to timeout, however it is still advised to avoid this function if possible.
 pub fn get_cursor_position<Output, Input>(
     output: &mut Output,
     input: &mut Input,
@@ -403,11 +478,11 @@ where
 }
 
 /// This function returns the size of an output in rows and columns
-pub fn size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
+pub fn get_size<Output>(output: &Output) -> std::io::Result<(u16, u16)>
 where
     Output: platform::RawOs,
 {
-    platform::size(output)
+    platform::get_size(output)
 }
 
 /// This function deletes all contents of a terminal

@@ -1,12 +1,10 @@
-
 //! # Termip
 //! A terminal manipulation library providing a pure function interface for cross platform
-//! applications. 
+//! applications.
 //!
 //! ## Goals
 //! Termip aims to provide a consistent and thin abstraction over platform specific sys calls and
 //! terminal handling.
-
 
 /// A module providing event structures for handling input from a terminal
 pub mod events;

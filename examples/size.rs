@@ -1,11 +1,11 @@
 use std::io::stdout;
 
-use termip::terminal::size;
+use termip::terminal::get_size;
 
 fn main() -> std::io::Result<()> {
     let out = stdout();
 
-    let s = size(&out)?;
+    let s = get_size(&out)?;
 
     println!("{}:{}", s.0, s.1);
 

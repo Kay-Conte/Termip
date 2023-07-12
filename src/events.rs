@@ -1,10 +1,17 @@
 use std::vec::IntoIter;
 
+#[derive(Debug)]
 pub struct EventBatch {
     internal: Vec<Event>,
 }
 
 impl EventBatch {
+    pub fn empty() -> Self {
+        Self {
+            internal: Vec::new(),
+        }
+    }
+
     pub fn pressed(&self, target: KeyCode) -> bool {
         self.internal.iter().any(|i| match i {
             Event::Key(KeyEvent { code, .. }) => *code == target,

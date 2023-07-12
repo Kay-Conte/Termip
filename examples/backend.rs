@@ -1,7 +1,7 @@
 use std::io::{Error, ErrorKind, Write};
 
 use termip::terminal::{
-    erase_entire_screen, hide_cursor, move_cursor, platform::RawOs, show_cursor,
+    erase_entire_screen, hide_cursor, move_cursor, platform::RawOs, show_cursor, get_cursor_position,
 };
 
 #[derive(Debug)]
@@ -97,7 +97,7 @@ where
     }
 
     fn get_cursor(&mut self) -> Result<(u16, u16), Error> {
-        todo!()
+        get_cursor_position(output, input)
     }
 
     fn set_cursor(&mut self, x: u16, y: u16) -> Result<(), Error> {
