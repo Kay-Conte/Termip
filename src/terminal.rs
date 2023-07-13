@@ -164,7 +164,7 @@ pub mod platform {
         O_NONBLOCK, POLLIN, TCSAFLUSH, TIOCGWINSZ,
     };
 
-    use crate::{events::{unix::parse_batch, Event, EventBatch}, style::Color};
+    use crate::{events::{unix::{parse_batch, parse_event}, Event, EventBatch}, style::Color};
 
     pub trait RawOs: std::os::fd::AsRawFd {}
 
@@ -245,6 +245,12 @@ pub mod platform {
         Output: Write,
     {
         write!(output, "\x1b[?1049l")
+    }
+
+    pub fn read_single<Input>(input: &mut Input) -> std::io::Result<Option<Event>> where Input: Read {
+        let mut iter = input.bytes().filter(|i| i.is_ok()).map(|i| i.unwrap());
+
+        Ok(parse_event(&mut iter))
     }
 
     pub fn read_batch<Input>(input: &mut Input) -> std::io::Result<EventBatch>
