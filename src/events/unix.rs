@@ -83,7 +83,7 @@ where
         b'F' => KeyCode::End.into(),
 
         // F1 - F4
-        val @ b'P'..=b'S' => KeyCode::F(1 + val - b'p').into(),
+        val @ b'P'..=b'S' => KeyCode::F((1 + val) - b'P').into(),
 
         _ => Event::UnrecognizedControlSequence,
     }

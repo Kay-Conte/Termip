@@ -35,6 +35,7 @@ fn main() -> std::io::Result<()> {
         std::thread::sleep(Duration::from_secs(1));
     }
 
+    show_cursor(&mut out)?;
     move_cursor(&mut out, 0, 0)?;
     disable_raw_mode(&mut inp)?;
 
