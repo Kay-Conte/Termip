@@ -63,7 +63,7 @@ impl<const U: usize> Game<U> {
     }
 
     fn next_step(&mut self) {
-        
+
     } 
 }
 
