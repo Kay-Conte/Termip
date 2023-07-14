@@ -4,6 +4,15 @@ enum Cell {
     Dead,
 }
 
+impl Cell {
+    fn value(&self) -> usize {
+        match self {
+            Cell::Alive => 1,
+            Cell::Dead => 0,
+        }
+    }
+}
+
 struct Game<const U: usize> {
     board: [Cell; U],
     width: usize,
@@ -40,11 +49,13 @@ impl<const U: usize> Game<U> {
     }
 
     fn should_live(&mut self, x: usize, y: usize) -> bool {
-        let neighbourhood = 0;
+        let mut neighbourhood = 0;
 
-        for u in -1..=1 {
-            for v in -1..=1 {
-                self.get(x, y);
+        for u in x.saturating_sub(1)..=x + 1 {
+            for v in y.saturating_sub(1)..=y + 1 {
+                if let Some(cell) = self.get(u, v) {
+                    neighbourhood += 1
+                }
             }
         } 
 
