@@ -5,16 +5,13 @@ use std::{
 };
 
 use libc::{
-    fcntl, ioctl, nfds_t, poll, pollfd, termios, winsize, FIONREAD, F_GETFL, F_SETFL,
-    O_NONBLOCK, POLLIN, TCSAFLUSH, TIOCGWINSZ,
+    fcntl, ioctl, nfds_t, poll, pollfd, termios, winsize, FIONREAD, F_GETFL, F_SETFL, O_NONBLOCK,
+    POLLIN, TCSAFLUSH, TIOCGWINSZ,
 };
 
-use crate::{
-    events::{
-        unix::{parse_batch, parse_event},
-        Event, EventBatch,
-    },
-    style::Color,
+use crate::events::{
+    unix::{parse_batch, parse_event},
+    Event, EventBatch,
 };
 
 pub trait RawOs: std::os::fd::AsRawFd {}
@@ -128,10 +125,7 @@ where
     Ok(batch)
 }
 
-pub fn read_batch_blocking<Input>(
-    input: &mut Input,
-    timeout: u32,
-) -> std::io::Result<EventBatch>
+pub fn read_batch_blocking<Input>(input: &mut Input, timeout: u32) -> std::io::Result<EventBatch>
 where
     Input: AsRawFd + Read,
 {
