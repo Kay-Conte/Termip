@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
-        for event in batch.into_iter() {
+        for event in batch {
             println!("{:?}", event);
         }
     }

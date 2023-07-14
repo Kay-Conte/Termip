@@ -1,6 +1,8 @@
 use std::io::{Read, Write};
 
-use crate::events::EventBatch;
+use crate::events::{Event, EventBatch};
+
+use self::platform::RawOs;
 
 #[cfg(target_family = "windows")]
 pub mod platform {
@@ -164,7 +166,13 @@ pub mod platform {
         O_NONBLOCK, POLLIN, TCSAFLUSH, TIOCGWINSZ,
     };
 
-    use crate::{events::{unix::{parse_batch, parse_event}, Event, EventBatch}, style::Color};
+    use crate::{
+        events::{
+            unix::{parse_batch, parse_event},
+            Event, EventBatch,
+        },
+        style::Color,
+    };
 
     pub trait RawOs: std::os::fd::AsRawFd {}
 
@@ -247,8 +255,11 @@ pub mod platform {
         write!(output, "\x1b[?1049l")
     }
 
-    pub fn read_single<Input>(input: &mut Input) -> std::io::Result<Option<Event>> where Input: Read {
-        let mut iter = input.bytes().filter(|i| i.is_ok()).map(|i| i.unwrap());
+    pub fn read_single<Input>(input: &mut Input) -> std::io::Result<Option<Event>>
+    where
+        Input: Read,
+    {
+        let mut iter = input.bytes().filter_map(|i| i.ok());
 
         Ok(parse_event(&mut iter))
     }
@@ -428,6 +439,22 @@ where
     Input: platform::RawOs,
 {
     platform::disable_raw_mode(input)
+}
+
+// This function returns a single event from an input. This function is both blocking and is
+// capable of deadlocking in some edgecases on unix. Additionally, this function makes individual
+// sys calls to read each byte and can be slow on some platforms.
+//
+// This function will return `None` on cases where the input is for some reason not blocking by
+// default. These cases are not handled but should rarely come up without intention.
+//
+// If performance and stability is
+// important, see `read_batch` or `read_batch_blocking`
+pub fn read_single<Input>(input: &mut Input) -> std::io::Result<Option<Event>>
+where
+    Input: RawOs + Read,
+{
+    platform::read_single(input)
 }
 
 /// This function reads a batch of events from an input. This function is non blocking but will

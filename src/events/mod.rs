@@ -24,6 +24,10 @@ impl EventBatch {
             _ => false,
         })
     }
+
+    pub fn iter<'a>(&'a self) -> EventBatchIter<'a> {
+        EventBatchIter::new(&self.internal)
+    }
 }
 
 impl IntoIterator for EventBatch {
@@ -39,6 +43,32 @@ impl IntoIterator for EventBatch {
 impl From<Vec<Event>> for EventBatch {
     fn from(internal: Vec<Event>) -> Self {
         Self { internal }
+    }
+}
+
+pub struct EventBatchIter<'a> {
+    internal: &'a Vec<Event>,
+    idx: usize,
+}
+
+impl<'a> EventBatchIter<'a> {
+    pub fn new(internal: &'a Vec<Event>) -> Self {
+        Self {
+            internal,
+            idx: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for EventBatchIter<'a> {
+    type Item = &'a Event;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.internal.get(self.idx);
+
+        self.idx += 1;
+
+        item
     }
 }
 
