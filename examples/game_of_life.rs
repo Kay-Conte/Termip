@@ -1,3 +1,7 @@
+use std::io::{Stdin, Stdout};
+
+use termip::terminal::{enable_raw_mode, enter_alternate_buffer};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Cell {
     Alive,
@@ -67,6 +71,14 @@ impl<const U: usize> Game<U> {
     } 
 }
 
+fn setup(out: &mut Stdout, inp: &mut Stdin) -> std::io::Result<()> {
+    enable_raw_mode(inp)?;
+
+    enter_alternate_buffer(out)?;
+
+    Ok(())
+}
+ 
 fn main() {
 
 }
