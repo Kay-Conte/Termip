@@ -1,3 +1,14 @@
+
+/// Marker struct used to identify types of color codes
+pub struct ForegroundCode;
+
+/// Marker struct used to identify types of color codes
+pub struct BackgroundCode;
+
+pub trait ColorCode<T> {
+    fn code(&self) -> u8;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Color {
     Black,
@@ -12,8 +23,8 @@ pub enum Color {
     Reset,
 }
 
-impl Color {
-    pub fn fg_code(&self) -> u8 {
+impl ColorCode<ForegroundCode> for Color {
+    fn code(&self) -> u8 {
         use Color::*;
 
         match self {
@@ -29,8 +40,10 @@ impl Color {
             Reset => 0,
         }
     }
+}
 
-    pub fn bg_code(&self) -> u8 {
+impl ColorCode<BackgroundCode> for Color {
+    fn code(&self) -> u8 {
         use Color::*;
 
         match self {

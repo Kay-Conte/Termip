@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use termip::terminal::{
+use termip::utils::{
     self, enable_raw_mode, erase_entire_screen, hide_cursor, move_cursor, show_cursor, disable_raw_mode,
 };
 
@@ -14,7 +14,7 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode(&mut inp)?;
     erase_entire_screen(&mut out)?;
 
-    let (x, y) = terminal::get_size(&out)?;
+    let (x, y) = utils::get_size(&out)?;
 
     let x = x / 2;
     let y = y / 2;

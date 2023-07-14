@@ -12,6 +12,6 @@ pub mod events;
 /// A module providing styling functionality for the terminal
 pub mod style;
 
-/// A module providing utilities to manipulate the terminal
-pub mod terminal;
+/// A module providing utilities to manipulate the terminal 
+pub mod utils;
 

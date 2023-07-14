@@ -3,7 +3,7 @@ use std::{
     time::Duration,
 };
 
-use termip::terminal::{enable_raw_mode, erase_entire_screen, move_cursor, get_size, disable_raw_mode};
+use termip::utils::{enable_raw_mode, erase_entire_screen, move_cursor, get_size, disable_raw_mode};
 
 fn move_and_wait(s: &mut Stdout, line: u16, column: u16) -> std::io::Result<()> {
     move_cursor(s, line, column)?;

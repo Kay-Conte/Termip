@@ -1,6 +1,6 @@
 use std::io::stdout;
 
-use termip::terminal::get_size;
+use termip::utils::get_size;
 
 fn main() -> std::io::Result<()> {
     let out = stdout();

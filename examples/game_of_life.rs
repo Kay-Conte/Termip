@@ -1,5 +1,4 @@
 use std::{
-    cmp::{max, min},
     io::{stdin, stdout, Stdin, Stdout, Write},
     time::Duration,
     usize,
@@ -7,7 +6,7 @@ use std::{
 
 use termip::{
     events::{Event, KeyCode, KeyEvent},
-    terminal::{
+    utils::{
         disable_raw_mode, enable_raw_mode, enter_alternate_buffer, erase_entire_screen, get_size,
         leave_alternate_buffer, move_cursor, read_batch,
     },
@@ -20,13 +19,6 @@ enum Cell {
 }
 
 impl Cell {
-    fn alive(&self) -> bool {
-        match self {
-            Cell::Alive => true,
-            Cell::Dead => false,
-        }
-    }
-
     fn value(&self) -> u16 {
         match self {
             Cell::Alive => 1,
@@ -38,12 +30,12 @@ impl Cell {
 #[derive(Clone)]
 struct Game {
     board: Vec<Cell>,
-    width: u16,
-    height: u16,
+    width: usize,
+    height: usize,
 }
 
 impl Game {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: usize, height: usize) -> Self {
         Self {
             board: vec![Cell::Dead; (width * height) as usize],
             width,
@@ -51,7 +43,7 @@ impl Game {
         }
     }
 
-    fn calc_idx(&self, x: u16, y: u16) -> Option<u16> {
+    fn calc_idx(&self, x: usize, y: usize) -> Option<usize> {
         if y > self.height || x > self.width {
             return None;
         }
@@ -59,25 +51,25 @@ impl Game {
         Some(y * self.width + x)
     }
 
-    fn get(&self, x: u16, y: u16) -> Option<&Cell> {
+    fn get(&self, x: usize, y: usize) -> Option<&Cell> {
         let idx = self.calc_idx(x, y)?;
 
         self.board.get(idx as usize)
     }
 
-    fn get_mut(&mut self, x: u16, y: u16) -> Option<&mut Cell> {
+    fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut Cell> {
         let idx = self.calc_idx(x, y)?;
 
         self.board.get_mut(idx as usize)
     }
 
-    fn set(&mut self, x: u16, y: u16, cell: Cell) {
+    fn set(&mut self, x: usize, y: usize, cell: Cell) {
         let c = self.get_mut(x, y).expect("Index not in range");
 
         *c = cell;
     }
 
-    fn new_state(&self, x: u16, y: u16) -> Cell {
+    fn new_state(&self, x: usize, y: usize) -> Cell {
         let mut neighbourhood = 0;
 
         for u in x.saturating_sub(1)..=x + 1 {
@@ -110,8 +102,8 @@ impl Game {
             let x = idx % buf.width as usize;
             let y = idx / buf.width as usize;
 
-            let cell = buf.new_state(x as u16, y as u16);
-            self.set(x as u16, y as u16, cell);
+            let cell = buf.new_state(x, y);
+            self.set(x, y, cell);
         }
     }
 
@@ -225,7 +217,7 @@ fn main() -> std::io::Result<()> {
 
     let mut cursor = Cursor::new(width, height);
 
-    let mut game: Game = Game::new(width, height);
+    let mut game: Game = Game::new(width as usize, height as usize);
 
     'outer: loop {
         let batch = read_batch(&mut inp)?;
@@ -268,13 +260,13 @@ fn main() -> std::io::Result<()> {
                     code: KeyCode::Char('a'),
                     ..
                 }) => {
-                    game.set(cursor.x() - 1, cursor.y() - 1, Cell::Alive);
+                    game.set((cursor.x() - 1) as usize, (cursor.y() - 1) as usize, Cell::Alive);
                 }
                 Event::Key(KeyEvent {
                     code: KeyCode::Char('d'),
                     ..
                 }) => {
-                    game.set(cursor.x() - 1, cursor.y() - 1, Cell::Dead);
+                    game.set((cursor.x() - 1) as usize, (cursor.y() - 1) as usize, Cell::Dead);
                 }
                 Event::Key(KeyEvent {
                     code: KeyCode::Char('e'),
@@ -283,7 +275,7 @@ fn main() -> std::io::Result<()> {
                     game.next_step();
                 }
                 Event::Key(KeyEvent {
-                    code: KeyCode::Char('c'),
+                    code: KeyCode::Char('q'),
                     ..
                 }) => {
                     break 'outer;

@@ -1,6 +1,9 @@
 use std::io::{Read, Write};
 
-use crate::events::{Event, EventBatch};
+use crate::{
+    events::{Event, EventBatch},
+    style::{BackgroundCode, ColorCode, ForegroundCode},
+};
 
 use self::platform::RawOs;
 
@@ -137,4 +140,24 @@ where
     Output: Write,
 {
     platform::erase_entire_screen(output)
+}
+
+pub fn set_fg<Output>(
+    output: &mut Output,
+    color: impl ColorCode<ForegroundCode>,
+) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    write!(output, "\x1b[{}m", color.code())
+}
+
+pub fn set_bg<Output>(
+    output: &mut Output,
+    color: impl ColorCode<BackgroundCode>,
+) -> std::io::Result<()>
+where
+    Output: Write,
+{
+    write!(output, "{}", color.code())
 }
