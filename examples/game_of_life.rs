@@ -1,6 +1,6 @@
 use std::{
     io::{stdin, stdout, Stdin, Stdout, Write},
-    time::Duration,
+    time::Instant,
     usize,
 };
 
@@ -8,8 +8,8 @@ use termip::{
     events::{Event, KeyCode, KeyEvent},
     utils::{
         disable_raw_mode, enable_raw_mode, enter_alternate_buffer, erase_entire_screen, get_size,
-        leave_alternate_buffer, move_cursor, read_batch,
-    },
+        leave_alternate_buffer, move_cursor, read_batch, 
+    }, 
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -184,6 +184,20 @@ impl Cursor {
     }
 }
 
+enum State {
+    Editing,
+    Simulating,
+}
+
+impl State {
+    fn toggle(&mut self) {
+        match self {
+            Self::Editing => *self = Self::Simulating,
+            Self::Simulating => *self = Self::Editing,
+        }
+    }
+}
+
 fn un_setup(out: &mut Stdout, inp: &mut Stdin) -> std::io::Result<()> {
     disable_raw_mode(inp)?;
     leave_alternate_buffer(out)?;
@@ -201,6 +215,7 @@ fn setup(out: &mut Stdout, inp: &mut Stdin) -> std::io::Result<()> {
     enter_alternate_buffer(out)?;
     erase_entire_screen(out)?;
 
+
     out.flush()?;
 
     Ok(())
@@ -216,11 +231,19 @@ fn main() -> std::io::Result<()> {
     let (height, width) = get_size(&mut out)?;
 
     let mut cursor = Cursor::new(width, height);
+    let mut game = Game::new(width as usize, height as usize);
+    let mut state = State::Editing;
 
-    let mut game: Game = Game::new(width as usize, height as usize);
+    let mut last_time: Instant;
 
     'outer: loop {
+        last_time = Instant::now();
+
         let batch = read_batch(&mut inp)?;
+
+        if batch.pressed(KeyCode::Char(' ')) {
+           state.toggle(); 
+        } 
 
         for ev in batch {
             match ev {
@@ -292,7 +315,7 @@ fn main() -> std::io::Result<()> {
 
         out.flush()?;
 
-        std::thread::sleep(Duration::from_millis(16));
+        std::thread::sleep(Instant::now() - last_time);
     }
 
     un_setup(&mut out, &mut inp)?;

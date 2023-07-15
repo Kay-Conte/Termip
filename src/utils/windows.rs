@@ -1,4 +1,3 @@
-
 use std::{
     io::{Error, ErrorKind, Write},
     os::windows::prelude::AsRawHandle,
