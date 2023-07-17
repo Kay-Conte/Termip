@@ -1,14 +1,12 @@
 use std::io::{stdin, stdout, Write};
 
-use termip::{utils::{enable_raw_mode, read_batch, platform::request_cursor_position, disable_raw_mode}, events::KeyCode};
+use termip::{utils::{enable_raw_mode, read_batch, disable_raw_mode}, events::KeyCode};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut inp = stdin();
     let mut out = stdout();
 
     enable_raw_mode(&mut inp)?;
-
-    request_cursor_position(&mut out)?;
 
     out.flush()?;
 

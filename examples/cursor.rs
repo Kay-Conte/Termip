@@ -4,7 +4,7 @@ use std::{
 };
 
 use termip::utils::{
-    self, enable_raw_mode, erase_entire_screen, hide_cursor, move_cursor, show_cursor, disable_raw_mode, enter_alternate_buffer, leave_alternate_buffer,
+    self, enable_raw_mode, hide_cursor, move_cursor, show_cursor, disable_raw_mode, enter_alternate_buffer, leave_alternate_buffer,
 };
 
 fn main() -> std::io::Result<()> {
