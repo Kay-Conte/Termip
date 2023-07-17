@@ -14,4 +14,3 @@ pub mod style;
 
 /// A module providing utilities to manipulate the terminal 
 pub mod utils;
-
