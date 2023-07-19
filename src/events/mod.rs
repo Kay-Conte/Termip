@@ -6,7 +6,7 @@ pub mod windows;
 
 use std::vec::IntoIter;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EventBatch {
     internal: Vec<Event>,
 }
@@ -73,7 +73,7 @@ impl<'a> Iterator for EventBatchIter<'a> {
 }
 
 #[repr(u8)]
-#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialOrd, PartialEq, Eq, Clone, Hash)]
 pub enum KeyModifiers {
     None = 0b0000_0000,
     Shift = 0b0000_0001,
@@ -84,7 +84,7 @@ pub enum KeyModifiers {
     Meta = 0b0010_0000,
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum KeyCode {
     Char(char),
 
@@ -107,14 +107,14 @@ pub enum KeyCode {
     F(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct KeyEvent {
     pub code: KeyCode,
 
     pub modifiers: KeyModifiers,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Event {
     Key(KeyEvent),
 
@@ -133,5 +133,25 @@ impl From<KeyCode> for Event {
             code: value,
             modifiers: KeyModifiers::None,
         })
+    }
+}
+
+impl Event {
+    /// Returns whether or not a given keycode was pressed, this is used to simplify the interface
+    /// of matching simple events
+    pub fn pressed(&self, key_code: KeyCode) -> bool {
+        match self {
+            Event::Key(KeyEvent { code, .. }) => *code == key_code,
+            _ => false,
+        }
+    }
+
+    /// Returns whether or not a givent key event occured, this is used to simplify the interface
+    /// of matching simple events
+    pub fn pressed_modified(&self, key_event: KeyEvent) -> bool {
+        match self {
+            Event::Key(event) => *event == key_event,
+            _ => false,
+        }
     }
 }

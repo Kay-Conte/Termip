@@ -53,8 +53,8 @@ where
     platform::disable_raw_mode(input)
 }
 
-// This function returns a single event from an input. This function is both blocking and is
-// capable of deadlocking in some edgecases on unix. Additionally, this function makes individual
+// This function returns a single event from an input. This function is both blocking and might be 
+// capable of deadlocking in some edgecases. Additionally, this function makes individual
 // sys calls to read each byte and can be slow on some platforms.
 //
 // This function will return `None` on cases where the input is for some reason not blocking by
@@ -159,5 +159,5 @@ pub fn set_bg<Output>(
 where
     Output: Write,
 {
-    write!(output, "{}", color.code())
+    write!(output, "\x1b{}m", color.code())
 }
